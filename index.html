@@ -1,1 +1,1038 @@
-GYRO RIG v4.txt
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>GYRO_RIG · rotational mechanics, made visible</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#081527; --hull:#0f2439; --line:#20455f;
+  --cream:#F3EEC3; --ink:#8aacbf;
+  --read:#00ff88; --warn:#ffb03a; --mom:#ff3d7f; --axis:#4fd8ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--void);
+  font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color:var(--ink);-webkit-user-select:none;user-select:none;}
+#view{position:fixed;inset:0;}
+canvas{display:block;touch-action:none;}
+
+#hud{position:fixed;top:0;left:0;right:0;pointer-events:none;
+  padding:calc(8px + env(safe-area-inset-top)) 10px 14px;
+  background:linear-gradient(180deg,var(--void) 42%,transparent);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:7px 8px;}
+.c{min-width:0;}
+.c .k{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);opacity:.85;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.c .v{font-size:12.5px;font-weight:500;color:var(--read);font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;
+  text-shadow:0 0 10px color-mix(in srgb,var(--read) 75%,transparent);}
+.c .v.cream{color:var(--cream);text-shadow:0 0 10px color-mix(in srgb,var(--cream) 55%,transparent);}
+.c .v.warn{color:var(--warn);text-shadow:0 0 10px color-mix(in srgb,var(--warn) 65%,transparent);}
+.c .v.mom{color:var(--mom);text-shadow:0 0 10px color-mix(in srgb,var(--mom) 65%,transparent);}
+
+#deck{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--void) 28%);
+  padding:0 10px calc(8px + env(safe-area-inset-bottom));}
+#grip{display:flex;align-items:center;gap:8px;padding:9px 2px 8px;}
+#grip .bar{flex:1;height:1px;background:var(--line);}
+#grip span{font-size:8.5px;letter-spacing:.22em;color:var(--axis);text-transform:uppercase;}
+#body{display:flex;gap:9px;align-items:flex-end;overflow:hidden;
+  max-height:230px;transition:max-height .28s ease,opacity .2s;}
+#body.hid{max-height:0;opacity:0;}
+#pad{width:88px;height:88px;flex:0 0 auto;border:1px solid var(--line);border-radius:13px;
+  position:relative;background:radial-gradient(circle at 50% 50%,#0e2236,#060e1a);touch-action:none;
+  box-shadow:inset 0 0 18px rgba(0,255,136,.04);}
+#pad b{position:absolute;top:5px;left:0;right:0;text-align:center;font-size:7.5px;
+  letter-spacing:.2em;color:var(--axis);font-weight:400;}
+#knob{position:absolute;width:24px;height:24px;left:32px;top:32px;border-radius:50%;
+  background:var(--read);box-shadow:0 0 16px var(--read);opacity:.9;}
+#knob.hot{background:var(--warn);box-shadow:0 0 20px var(--warn);}
+#col{flex:1;display:flex;flex-direction:column;gap:7px;min-width:0;}
+.sld{display:flex;align-items:center;gap:7px;}
+.sld i{font-style:normal;font-size:8px;letter-spacing:.14em;color:var(--ink);
+  text-transform:uppercase;width:30px;flex:0 0 auto;}
+.sld em{font-style:normal;font-size:9.5px;color:var(--cream);font-variant-numeric:tabular-nums;
+  width:54px;flex:0 0 auto;text-align:right;}
+input[type=range]{flex:1;min-width:0;accent-color:var(--read);height:20px;}
+.row{display:flex;gap:7px;}
+button{flex:1;min-width:0;background:var(--hull);color:var(--ink);border:1px solid var(--line);
+  border-radius:9px;padding:10px 4px;font:inherit;font-size:9.5px;font-weight:500;
+  letter-spacing:.12em;text-transform:uppercase;}
+button:active{background:#0a2a40;}
+button.on{border-color:var(--read);color:var(--read);
+  box-shadow:0 0 10px color-mix(in srgb,var(--read) 30%,transparent);}
+button.warn.on{border-color:var(--warn);color:var(--warn);
+  box-shadow:0 0 10px color-mix(in srgb,var(--warn) 35%,transparent);}
+button:focus-visible{outline:2px solid var(--read);outline-offset:2px;}
+#flash{position:fixed;left:0;right:0;top:44%;text-align:center;padding:0 26px;pointer-events:none;
+  font-size:11px;letter-spacing:.1em;color:var(--axis);opacity:0;transition:opacity .35s;}
+@media (max-height:640px){#pad{width:74px;height:74px;}#knob{width:20px;height:20px;left:27px;top:27px;}}
+@media (prefers-reduced-motion:reduce){#body{transition:none;}}
+
+#shapeWrap{position:fixed;inset:0;background:rgba(3,8,15,.72);z-index:20;
+  display:flex;align-items:center;justify-content:center;padding:16px;}
+#shapeWrap.hid{display:none;}
+#shapePanel{width:100%;max-width:270px;background:var(--hull);border:1px solid var(--line);
+  border-radius:14px;padding:12px;box-shadow:0 0 30px rgba(0,0,0,.5);}
+#spHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+#spHead span{font-size:9px;letter-spacing:.2em;color:var(--axis);text-transform:uppercase;}
+#spClose{flex:0 0 auto;width:26px;padding:4px 0;border-radius:8px;}
+#spLayerRow{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;}
+#spLayerRow button{flex:0 0 auto;width:34px;padding:6px 0;}
+#spLyLbl{font-size:10px;color:var(--cream);letter-spacing:.08em;min-width:64px;text-align:center;}
+#spGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:0 auto 10px;width:190px;}
+.vx{width:34px;height:34px;border-radius:6px;border:1px solid var(--line);
+  background:#0a1b2c;box-shadow:inset 0 0 6px rgba(0,0,0,.4);}
+.vx.on{background:var(--axis);border-color:var(--axis);
+  box-shadow:0 0 10px color-mix(in srgb,var(--axis) 60%,transparent);}
+#spAxisRow{display:flex;gap:6px;margin-bottom:8px;}
+#spAxisRow button{font-size:8px;}
+#spInertia{font-size:9px;color:var(--ink);letter-spacing:.05em;text-align:center;
+  margin-bottom:9px;min-height:13px;}
+#spInertia b{color:var(--cream);font-weight:500;}
+#spBtnRow{display:flex;gap:6px;}
+#spBtnRow #spApply{border-color:var(--read);color:var(--read);}
+</style>
+</head>
+<body>
+<div id="view"></div>
+
+<div id="hud">
+  <div class="c"><div class="k">spin</div><div class="v" id="vSpin">0.00</div></div>
+  <div class="c"><div class="k">tilt</div><div class="v cream" id="vTilt">0.0&deg;</div></div>
+  <div class="c"><div class="k">precession</div><div class="v" id="vPrec">&mdash;</div></div>
+  <div class="c"><div class="k">nutation</div><div class="v cream" id="vNut">0.00&deg;</div></div>
+  <div class="c"><div class="k">|L|</div><div class="v mom" id="vL">0.00</div></div>
+  <div class="c"><div class="k">energy</div><div class="v cream" id="vE">0.00 J</div></div>
+  <div class="c"><div class="k">stability</div><div class="v cream" id="vStab">IDLE</div></div>
+  <div class="c"><div class="k">rk4 steps</div><div class="v cream" id="vSub">6</div></div>
+</div>
+
+<div id="flash"></div>
+
+<div id="deck">
+  <div id="grip"><span id="gripL">&#9662; deck</span><div class="bar"></div><span>gyro_rig</span></div>
+  <div id="body">
+    <div id="pad"><b>FORCE</b><div id="knob"></div></div>
+    <div id="col">
+      <div class="sld"><i>spin</i><input id="sSpin" type="range" min="0" max="30" step="0.1" value="0"><em id="lSpin">0.0 r/s</em></div>
+      <div class="sld"><i>c.o.m</i><input id="sCom" type="range" min="0" max="0.6" step="0.01" value="0.35"><em id="lCom">0.35 m</em></div>
+      <div class="row">
+        <button id="bTilt">Disturb</button>
+        <button id="bGrav" class="warn">Gravity</button>
+        <button id="bFric" class="on">Damping</button>
+      </div>
+      <div class="row">
+        <button id="bNudge">Nudge</button>
+        <button id="bReset">Reset</button>
+      </div>
+      <div class="row">
+        <button id="bEllip">Ellipsoid</button>
+        <button id="bVox">Voxels</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="shapeWrap" class="hid">
+  <div id="shapePanel">
+    <div id="spHead"><span>voxel body</span><button id="spClose">&times;</button></div>
+    <div id="spLayerRow">
+      <button id="spLyDn">&#9664;</button><span id="spLyLbl">layer 3 / 5</span><button id="spLyUp">&#9654;</button>
+    </div>
+    <div id="spGrid"></div>
+    <div id="spAxisRow">
+      <button id="spAxHi" class="on">High I&rarr;Z</button>
+      <button id="spAxMid">Mid I&rarr;Z</button>
+      <button id="spAxLo">Low I&rarr;Z</button>
+    </div>
+    <div id="spInertia">paint blocks, then Apply</div>
+    <div id="spBtnRow">
+      <button id="spClear">Clear</button>
+      <button id="spDisc">Disc</button>
+      <button id="spApply">Apply</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* CONSTANTS */
+const M=1.0, RAD=1.0, THK=0.35, GRAV=9.81;
+const DISC_IZ=0.5*M*RAD*RAD, DISC_IX=(1/12)*M*(3*RAD*RAD+THK*THK), DISC_IY=DISC_IX;
+let IZ=DISC_IZ, IX=DISC_IX, IY=DISC_IY;
+const STEP_RAD=0.15, SUB_MIN=6, SUB_MAX=24, DT_CAP=0.05;
+const PAD_N=4.0, PAD_ARM=1.5;
+const DAMP_AX=0.015, DAMP_TR=0.30;
+const SPIN_INIT=8, COM_DEF=0.35, TILT_INIT=22, NUT_WIN=90;
+const CAM_R0=7.4, CAM_MIN=3.4, CAM_MAX=17, ORB_K=0.0062, PAN_K=0.0016;
+const TRAIL_N=200, PREC_LP=0.12, VERT_EPS=0.06;
+const ELLIPS_S=0.62;
+const POLHODE_N=500, E_EPS=1e-4;
+const VOX_N=5, VOX_CELL=0.62;   /* 5x5x5 paintable grid, unit mass per active cell */
+let shapeR=RAD;                 /* bounding radius of current body, drives shaft/trail scale */
+
+/* helpers */
+const qmul=(a,b)=>[a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],
+                   a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],
+                   a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],
+                   a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]];
+const qcon=q=>[-q[0],-q[1],-q[2],q[3]];
+const qnrm=q=>{const n=Math.hypot(q[0],q[1],q[2],q[3])||1;return[q[0]/n,q[1]/n,q[2]/n,q[3]/n];};
+const qrot=(q,v)=>{const r=qmul(qmul(q,[v[0],v[1],v[2],0]),qcon(q));return[r[0],r[1],r[2]];};
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const len=a=>Math.hypot(a[0],a[1],a[2]);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+/* Jacobi eigensolver for a symmetric 3x3 — used once per Apply, not per frame.
+   Returns {val:[l0,l1,l2], vec:[[x,y,z]x3]} with vec[i] the eigenvector for val[i]. */
+function jacobiEig3(a){
+  const A=[[a[0][0],a[0][1],a[0][2]],[a[1][0],a[1][1],a[1][2]],[a[2][0],a[2][1],a[2][2]]];
+  const V=[[1,0,0],[0,1,0],[0,0,1]];
+  for(let sweep=0;sweep<40;sweep++){
+    let off=Math.abs(A[0][1])+Math.abs(A[0][2])+Math.abs(A[1][2]);
+    if(off<1e-11)break;
+    for(const[p,q]of[[0,1],[0,2],[1,2]]){
+      if(Math.abs(A[p][q])<1e-13)continue;
+      const th=0.5*Math.atan2(2*A[p][q],A[q][q]-A[p][p]);
+      const c=Math.cos(th),s=Math.sin(th);
+      for(let i=0;i<3;i++){
+        const aip=A[i][p],aiq=A[i][q];
+        A[i][p]=c*aip-s*aiq; A[i][q]=s*aip+c*aiq;
+      }
+      for(let i=0;i<3;i++){
+        const api=A[p][i],aqi=A[q][i];
+        A[p][i]=c*api-s*aqi; A[q][i]=s*api+c*aqi;
+      }
+      for(let i=0;i<3;i++){
+        const vip=V[i][p],viq=V[i][q];
+        V[i][p]=c*vip-s*viq; V[i][q]=s*vip+c*viq;
+      }
+    }
+  }
+  return {val:[A[0][0],A[1][1],A[2][2]], vec:[[V[0][0],V[1][0],V[2][0]],[V[0][1],V[1][1],V[2][1]],[V[0][2],V[1][2],V[2][2]]]};
+}
+
+/* STATE */
+let q=[0,0,0,1], L=[0,0,0];
+let gravOn=false, fricOn=true, com=COM_DEF;
+let padOn=false, padV=[0,0], padTorque=[0,0,0];
+let lastSub=SUB_MIN;
+
+const spinAxis=qq=>qrot(qq,[0,0,1]);
+function omega(qq,LL){
+  const Lb=qrot(qcon(qq),LL);
+  return qrot(qq,[Lb[0]/IX,Lb[1]/IY,Lb[2]/IZ]);
+}
+function energy(qq,LL){
+  const Lb=qrot(qcon(qq),LL);
+  return 0.5*(Lb[0]*Lb[0]/IX+Lb[1]*Lb[1]/IY+Lb[2]*Lb[2]/IZ);
+}
+function torque(qq){
+  let t=[0,0,0];
+  if(gravOn&&com>1e-4) t=cross(spinAxis(qq).map(v=>v*com),[0,-M*GRAV,0]);
+  return [t[0]+padTorque[0],t[1]+padTorque[1],t[2]+padTorque[2]];
+}
+
+/* RK4 on (q,L) */
+function deriv(qq,LL){
+  const w=omega(qq,LL);
+  const d=qmul([w[0],w[1],w[2],0],qq);
+  return [[0.5*d[0],0.5*d[1],0.5*d[2],0.5*d[3]], torque(qq)];
+}
+function rk4(dt){
+  const aq=(a,b,s)=>[a[0]+b[0]*s,a[1]+b[1]*s,a[2]+b[2]*s,a[3]+b[3]*s];
+  const a3=(a,b,s)=>[a[0]+b[0]*s,a[1]+b[1]*s,a[2]+b[2]*s];
+  const k1=deriv(q,L);
+  const k2=deriv(qnrm(aq(q,k1[0],dt/2)), a3(L,k1[1],dt/2));
+  const k3=deriv(qnrm(aq(q,k2[0],dt/2)), a3(L,k2[1],dt/2));
+  const k4=deriv(qnrm(aq(q,k3[0],dt)),   a3(L,k3[1],dt));
+  const h=dt/6;
+  q=qnrm([q[0]+h*(k1[0][0]+2*k2[0][0]+2*k3[0][0]+k4[0][0]),
+          q[1]+h*(k1[0][1]+2*k2[0][1]+2*k3[0][1]+k4[0][1]),
+          q[2]+h*(k1[0][2]+2*k2[0][2]+2*k3[0][2]+k4[0][2]),
+          q[3]+h*(k1[0][3]+2*k2[0][3]+2*k3[0][3]+k4[0][3])]);
+  L=[L[0]+h*(k1[1][0]+2*k2[1][0]+2*k3[1][0]+k4[1][0]),
+     L[1]+h*(k1[1][1]+2*k2[1][1]+2*k3[1][1]+k4[1][1]),
+     L[2]+h*(k1[1][2]+2*k2[1][2]+2*k3[1][2]+k4[1][2])];
+}
+function advance(dt){
+  const n=clamp(Math.ceil(len(omega(q,L))*dt/STEP_RAD),SUB_MIN,SUB_MAX);
+  lastSub=n;
+  const sdt=dt/n;
+  for(let i=0;i<n;i++) rk4(sdt);
+  if(fricOn){
+    const ax=spinAxis(q), la=dot(L,ax);
+    const A=[ax[0]*la,ax[1]*la,ax[2]*la];
+    const T=[L[0]-A[0],L[1]-A[1],L[2]-A[2]];
+    const fa=Math.exp(-DAMP_AX*dt), ft=Math.exp(-DAMP_TR*dt);
+    L=[A[0]*fa+T[0]*ft, A[1]*fa+T[1]*ft, A[2]*fa+T[2]*ft];
+  }
+}
+
+/* SCENE */
+const view=document.getElementById('view');
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x081527,0.019);
+scene.background=new THREE.Color(0x081527);
+const camera=new THREE.PerspectiveCamera(50,1,0.1,120);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setClearColor(0x081527,1);
+view.appendChild(renderer.domElement);
+
+/* scene palette */
+const C_RIM=0xFF4060;   /* vivid red-pink rim ring */
+const C_SPOKE=0xC8D8E8; /* blue-silver spokes */
+const C_MOM=0xFF3080;   /* hot magenta L arrow */
+const C_OM=0xB388FF;    /* violet omega arrow — reads distinct from L/warn/axis */
+const C_AX=0x4fd8ff;    /* cyan axis / shaft / trail */
+const C_WARN=0xFFCC00;  /* vivid amber — c.o.m. marker, gravity arrow */
+const C_CAGE=0xD0DCE8;  /* bright silver cage rings */
+const C_CAGEIN=0x4E7A9A;/* inner cage ring */
+const C_DISC=0x1a3a50;  /* deep teal disc body */
+
+const grid=new THREE.GridHelper(30,30,0x20455f,0x4fd8ff);
+grid.material.opacity=0.8; grid.material.transparent=true;
+grid.position.y=-3.2; scene.add(grid);
+
+/* lighting — brighter, bluer */
+scene.add(new THREE.HemisphereLight(0x2a6a98,0x081527,0.85));
+scene.add(new THREE.AmbientLight(0x2c4d6e,1.6));
+const kl=new THREE.PointLight(0xb0f0d8,1.75,80); kl.position.set(5,8,6); scene.add(kl);
+const rl=new THREE.PointLight(0xFF4060,0.85,60); rl.position.set(-6,-3,-5); scene.add(rl);
+const al=new THREE.PointLight(0x4fd8ff,0.65,50); al.position.set(3,-4,5); scene.add(al);
+
+const cage=new THREE.Group(); scene.add(cage);
+function ring(r,c,ei,eu){
+  const m=new THREE.Mesh(new THREE.TorusGeometry(r,0.020,8,80),
+    new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:ei,metalness:.35,roughness:.55}));
+  if(eu)m.rotation.copy(eu); return m;
+}
+cage.add(ring(2.42,C_CAGE,0.50,new THREE.Euler(0,0,0)));
+cage.add(ring(2.24,C_CAGE,0.50,new THREE.Euler(Math.PI/2,0,0)));
+cage.add(ring(2.06,C_CAGEIN,0.35,new THREE.Euler(0,Math.PI/2,0)));
+const pm=new THREE.MeshStandardMaterial({color:0x2a5a7a,emissive:0x1a3a5c,emissiveIntensity:.4,metalness:.6,roughness:.4});
+[[0,2.42,0],[0,-2.42,0]].forEach(p=>{
+  const s=new THREE.Mesh(new THREE.SphereGeometry(0.062,10,10),pm);
+  s.position.set(p[0],p[1],p[2]); cage.add(s);
+});
+
+const rotor=new THREE.Group(); scene.add(rotor);
+
+/* discVis — the default flywheel look. Swapped out for voxelVis when a
+   painted shape is applied; either way rotor's own quaternion IS q, so both
+   render the same physics without knowing which shape is active. */
+const discVis=new THREE.Group(); rotor.add(discVis);
+const disc=new THREE.Mesh(new THREE.CylinderGeometry(1,1,THK,52,1,false),
+  new THREE.MeshStandardMaterial({color:C_DISC,emissive:C_AX,emissiveIntensity:.12,metalness:.75,roughness:.25}));
+disc.rotation.x=Math.PI/2; discVis.add(disc);
+
+/* rim ring — vivid glow */
+discVis.add(new THREE.Mesh(new THREE.TorusGeometry(1,0.030,8,72),
+  new THREE.MeshStandardMaterial({color:C_RIM,emissive:C_RIM,emissiveIntensity:1.05,metalness:.4,roughness:.8})));
+
+/* spokes */
+const spokeM=new THREE.MeshStandardMaterial({color:C_SPOKE,emissive:C_SPOKE,emissiveIntensity:.60});
+for(let i=0;i<3;i++){
+  const s=new THREE.Mesh(new THREE.BoxGeometry(1.92,0.035,0.045),spokeM);
+  s.rotation.z=i*Math.PI/3; discVis.add(s);
+}
+
+/* c.o.m. marker — BUGFIX: z was string; now 0 */
+const mark=new THREE.Mesh(new THREE.SphereGeometry(0.08,10,10),
+  new THREE.MeshStandardMaterial({color:C_WARN,emissive:C_WARN,emissiveIntensity:1.15}));
+mark.position.set(0.85,0,0); discVis.add(mark);
+
+/* voxelVis — painted body. One shared InstancedMesh sized for the max grid
+   (VOX_N^3 cells); .count is trimmed to however many cells are actually on. */
+const voxM=new THREE.MeshStandardMaterial({color:0x1f5578,emissive:C_AX,emissiveIntensity:.35,metalness:.55,roughness:.35});
+const voxelVis=new THREE.InstancedMesh(new THREE.BoxGeometry(VOX_CELL*0.86,VOX_CELL*0.86,VOX_CELL*0.86),voxM,VOX_N*VOX_N*VOX_N);
+voxelVis.count=0; voxelVis.visible=false; rotor.add(voxelVis);
+
+/* shaft / tip */
+const shaftM=new THREE.MeshStandardMaterial({color:C_AX,emissive:C_AX,emissiveIntensity:1.4});
+const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.020,0.020,3.0,8),shaftM);
+shaft.rotation.x=Math.PI/2; rotor.add(shaft);
+const tip=new THREE.Mesh(new THREE.SphereGeometry(0.090,12,12),shaftM);
+tip.position.z=1.5; rotor.add(tip);
+
+/* L arrow — hot magenta, persistent angular momentum */
+const Larr=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,0),2,C_MOM,0.28,0.16);
+scene.add(Larr);
+
+/* omega arrow — violet, angular velocity for direct L-vs-w comparison */
+const Warr=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,0),2,C_OM,0.26,0.14);
+scene.add(Warr);
+
+/* inertia ellipsoid — body-fixed, semi-axes = 1/sqrt(I). Short axis = high I =
+   stable spin axis. Wireframe so the disc/voxels stay readable through it. */
+const ellip=new THREE.Mesh(new THREE.SphereGeometry(1,28,20),
+  new THREE.MeshBasicMaterial({color:C_AX,wireframe:true,transparent:true,opacity:.34}));
+ellip.visible=false; rotor.add(ellip);
+function refreshEllipsoid(){
+  ellip.scale.set((1/Math.sqrt(IX))*ELLIPS_S,(1/Math.sqrt(IY))*ELLIPS_S,(1/Math.sqrt(IZ))*ELLIPS_S);
+}
+refreshEllipsoid();
+
+/* polhode state point — position = (w_body / sqrt(2E)) * ELLIPS_S, which sits
+   exactly on the ellipsoid above by construction (x.I.x=1 when x=w/sqrt(2E)). */
+const poleMark=new THREE.Mesh(new THREE.SphereGeometry(0.045,10,10),
+  new THREE.MeshBasicMaterial({color:0xffffff}));
+poleMark.visible=false; rotor.add(poleMark);
+
+/* polhode trail — body-fixed, parented to rotor so it stays put in body space
+   while the whole assembly turns; traces the true path w carves on the ellipsoid */
+const poP=new Float32Array(POLHODE_N*3);
+const poG=new THREE.BufferGeometry();
+poG.setAttribute('position',new THREE.BufferAttribute(poP,3));
+const poTrail=new THREE.Line(poG,new THREE.LineBasicMaterial({color:C_OM,transparent:true,opacity:.75}));
+poTrail.visible=false; rotor.add(poTrail);
+let poN=0;
+function pushPolhode(p){
+  for(let i=Math.min(poN,POLHODE_N-1);i>0;i--){
+    poP[i*3]=poP[i*3-3]; poP[i*3+1]=poP[i*3-2]; poP[i*3+2]=poP[i*3-1];
+  }
+  poP[0]=p[0]; poP[1]=p[1]; poP[2]=p[2];
+  poN=Math.min(poN+1,POLHODE_N);
+  poG.setDrawRange(0,poN); poG.attributes.position.needsUpdate=true;
+}
+
+/* gravity arrow — vivid amber */
+const gArr=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,3.3,0),1.2,C_WARN,0.24,0.14);
+gArr.visible=false; scene.add(gArr);
+
+/* trail */
+const tp=new Float32Array(TRAIL_N*3);
+const tg=new THREE.BufferGeometry();
+tg.setAttribute('position',new THREE.BufferAttribute(tp,3));
+const trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:C_AX,transparent:true,opacity:.960}));
+scene.add(trail);
+let tn=0;
+function pushTrail(p){
+  for(let i=Math.min(tn,TRAIL_N-1);i>0;i--){
+    tp[i*3]=tp[i*3-3]; tp[i*3+1]=tp[i*3-2]; tp[i*3+2]=tp[i*3-1];
+  }
+  tp[0]=p[0]; tp[1]=p[1]; tp[2]=p[2];
+  tn=Math.min(tn+1,TRAIL_N);
+  tg.setDrawRange(0,tn); tg.attributes.position.needsUpdate=true;
+}
+
+/* CAMERA */
+let az=0.62, el=0.26, cr=CAM_R0;
+const tgt=new THREE.Vector3(0,0,0);
+function placeCam(){
+  camera.position.set(tgt.x+cr*Math.cos(el)*Math.sin(az),
+                      tgt.y+cr*Math.sin(el),
+                      tgt.z+cr*Math.cos(el)*Math.cos(az));
+  camera.lookAt(tgt);
+}
+
+/* INPUT */
+const cv=renderer.domElement;
+let drag=null, two=false, pinch=null, mid=null;
+cv.addEventListener('pointerdown',e=>{
+  if(two)return;
+  drag={x:e.clientX,y:e.clientY,id:e.pointerId};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(two){drag=null;return;}
+  if(!drag||drag.id!==e.pointerId)return;
+  az-=(e.clientX-drag.x)*ORB_K;
+  el=clamp(el+(e.clientY-drag.y)*ORB_K,-1.4,1.4);
+  drag.x=e.clientX; drag.y=e.clientY;
+});
+cv.addEventListener('pointerup',()=>{drag=null;});
+cv.addEventListener('pointercancel',()=>{drag=null;});
+
+const mp=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2});
+cv.addEventListener('touchstart',e=>{
+  if(e.touches.length===2){
+    two=true; drag=null;
+    pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                     e.touches[0].clientY-e.touches[1].clientY);
+    mid=mp(e.touches);
+  }
+},{passive:false});
+cv.addEventListener('touchmove',e=>{
+  if(e.touches.length!==2)return;
+  e.preventDefault(); two=true;
+  const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                     e.touches[0].clientY-e.touches[1].clientY);
+  if(pinch)cr=clamp(cr*(pinch/d),CAM_MIN,CAM_MAX);
+  pinch=d;
+  const m=mp(e.touches);
+  if(mid){
+    const f=new THREE.Vector3(); camera.getWorldDirection(f);
+    const rt=new THREE.Vector3().crossVectors(f,camera.up).normalize();
+    const up=new THREE.Vector3().crossVectors(rt,f).normalize();
+    const k=cr*PAN_K;
+    tgt.addScaledVector(rt,-(m.x-mid.x)*k).addScaledVector(up,(m.y-mid.y)*k);
+  }
+  mid=m;
+},{passive:false});
+const endTouch=e=>{if(!e.touches||e.touches.length<2){pinch=null;mid=null;two=false;}};
+cv.addEventListener('touchend',endTouch);
+cv.addEventListener('touchcancel',endTouch);
+
+/* FORCE pad */
+const pad=document.getElementById('pad'), knob=document.getElementById('knob');
+function padSet(cx,cy){
+  const r=pad.getBoundingClientRect();
+  let x=(cx-r.left)/r.width*2-1, y=(cy-r.top)/r.height*2-1;
+  const m=Math.hypot(x,y); if(m>1){x/=m;y/=m;}
+  padV=[x,y];
+  const kw=knob.offsetWidth||24, k=(r.width-kw)/2;
+  knob.style.left=(r.width/2-kw/2+x*k)+'px';
+  knob.style.top=(r.height/2-kw/2+y*k)+'px';
+  knob.classList.toggle('hot',m>0.6);
+}
+function padOff(){
+  padOn=false; padV=[0,0]; padTorque=[0,0,0];
+  knob.style.left=''; knob.style.top=''; knob.classList.remove('hot');
+}
+pad.addEventListener('pointerdown',e=>{
+  padOn=true; pad.setPointerCapture(e.pointerId);
+  padSet(e.clientX,e.clientY); e.preventDefault();
+});
+pad.addEventListener('pointermove',e=>{if(padOn)padSet(e.clientX,e.clientY);});
+pad.addEventListener('pointerup',padOff);
+pad.addEventListener('pointercancel',padOff);
+function updatePadTorque(){
+  if(!padOn||(!padV[0]&&!padV[1])){padTorque=[0,0,0];return;}
+  const f=new THREE.Vector3(); camera.getWorldDirection(f);
+  const rt=new THREE.Vector3().crossVectors(f,camera.up).normalize();
+  const up=new THREE.Vector3().crossVectors(rt,f).normalize();
+  const F=[rt.x*padV[0]*PAD_N-up.x*padV[1]*PAD_N,
+           rt.y*padV[0]*PAD_N-up.y*padV[1]*PAD_N,
+           rt.z*padV[0]*PAD_N-up.z*padV[1]*PAD_N];
+  padTorque=cross(spinAxis(q).map(v=>v*PAD_ARM),F);
+}
+
+/* CONTROLS */
+const sSpin=document.getElementById('sSpin'), lSpin=document.getElementById('lSpin');
+const sCom=document.getElementById('sCom'),  lCom=document.getElementById('lCom');
+function applySpin(rev){
+  const w=2*Math.PI*rev, ax=spinAxis(q), la=dot(L,ax);
+  L=[L[0]-ax[0]*la+ax[0]*IZ*w,
+     L[1]-ax[1]*la+ax[1]*IZ*w,
+     L[2]-ax[2]*la+ax[2]*IZ*w];
+}
+sSpin.addEventListener('input',()=>{
+  const r=parseFloat(sSpin.value);
+  lSpin.textContent=r.toFixed(1)+' r/s';
+  applySpin(r);
+});
+sCom.addEventListener('input',()=>{
+  com=parseFloat(sCom.value);
+  lCom.textContent=com.toFixed(2)+' m';
+});
+
+const bGrav=document.getElementById('bGrav'), bFric=document.getElementById('bFric'),
+      bTilt=document.getElementById('bTilt'), bReset=document.getElementById('bReset'),
+      bNudge=document.getElementById('bNudge'), bEllip=document.getElementById('bEllip'),
+      bVox=document.getElementById('bVox');
+let ellipsoidOn=false;
+
+/* ============================ VOXEL BODY ============================
+   Paint a 5x5x5 grid, compute its real inertia tensor (with cross terms),
+   Jacobi-diagonalize it, and re-express the shape in that principal-axis
+   frame so the existing diagonal-only physics (omega/energy/torque all
+   just divide by IX/IY/IZ) works completely unmodified for ANY shape —
+   symmetric or fully asymmetric. Picking which principal axis becomes
+   body z (via High/Mid/Low I) is what exposes the intermediate-axis flip. */
+const VOX_C=(VOX_N-1)/2;
+const voxGrid=new Uint8Array(VOX_N*VOX_N*VOX_N);
+const vIdx=(i,j,k)=>i+VOX_N*(j+VOX_N*k);
+let curLayer=Math.floor(VOX_N/2), axisPick='hi';
+
+const shapeWrap=document.getElementById('shapeWrap'), spGrid=document.getElementById('spGrid'),
+      spLyLbl=document.getElementById('spLyLbl'), spInertia=document.getElementById('spInertia'),
+      spAxHi=document.getElementById('spAxHi'), spAxMid=document.getElementById('spAxMid'), spAxLo=document.getElementById('spAxLo');
+const vxCells=[];
+for(let j=VOX_N-1;j>=0;j--){
+  for(let i=0;i<VOX_N;i++){
+    const c=document.createElement('div'); c.className='vx';
+    c.addEventListener('click',()=>{
+      const idx=vIdx(i,j,curLayer); voxGrid[idx]=voxGrid[idx]?0:1;
+      c.classList.toggle('on',!!voxGrid[idx]);
+    });
+    spGrid.appendChild(c); vxCells.push({el:c,i,j});
+  }
+}
+function refreshGridUI(){
+  spLyLbl.textContent='layer '+(curLayer+1)+' / '+VOX_N;
+  vxCells.forEach(cc=>cc.el.classList.toggle('on',!!voxGrid[vIdx(cc.i,cc.j,curLayer)]));
+}
+document.getElementById('spLyDn').addEventListener('click',()=>{curLayer=clamp(curLayer-1,0,VOX_N-1);refreshGridUI();});
+document.getElementById('spLyUp').addEventListener('click',()=>{curLayer=clamp(curLayer+1,0,VOX_N-1);refreshGridUI();});
+
+function setAxisPick(p){
+  axisPick=p;
+  spAxHi.classList.toggle('on',p==='hi'); spAxMid.classList.toggle('on',p==='mid'); spAxLo.classList.toggle('on',p==='lo');
+}
+spAxHi.addEventListener('click',()=>setAxisPick('hi'));
+spAxMid.addEventListener('click',()=>setAxisPick('mid'));
+spAxLo.addEventListener('click',()=>setAxisPick('lo'));
+
+document.getElementById('spClear').addEventListener('click',()=>{
+  voxGrid.fill(0); refreshGridUI(); spInertia.textContent='cleared — paint blocks, then Apply';
+});
+document.getElementById('spDisc').addEventListener('click',()=>{revertToDisc(); shapeWrap.classList.add('hid');});
+document.getElementById('spApply').addEventListener('click',()=>{
+  if(applyVoxelShape()) shapeWrap.classList.add('hid');
+});
+document.getElementById('spClose').addEventListener('click',()=>shapeWrap.classList.add('hid'));
+bVox.addEventListener('click',()=>{refreshGridUI(); shapeWrap.classList.remove('hid');});
+
+const _mtx=new THREE.Matrix4(), _pos=new THREE.Vector3(), _q0=new THREE.Quaternion(), _sc=new THREE.Vector3(1,1,1);
+function stopMotion(){
+  L=[0,0,0]; sSpin.value=0; lSpin.textContent='0.0 r/s';
+  tn=0; tg.setDrawRange(0,0); poN=0; poG.setDrawRange(0,0);
+  nutBuf.length=0; precS=0; havePrev=false;
+}
+function revertToDisc(){
+  IX=DISC_IX; IY=DISC_IY; IZ=DISC_IZ; shapeR=RAD;
+  discVis.visible=true; voxelVis.visible=false; voxelVis.count=0;
+  refreshEllipsoid(); shaft.scale.set(1,1,1); tip.position.z=1.5;
+  stopMotion();
+  spInertia.textContent='back to the default disc';
+  flash('back to the default disc');
+}
+function applyVoxelShape(){
+  const cells=[];
+  for(let k=0;k<VOX_N;k++)for(let j=0;j<VOX_N;j++)for(let i=0;i<VOX_N;i++)
+    if(voxGrid[vIdx(i,j,k)]) cells.push([(i-VOX_C)*VOX_CELL,(j-VOX_C)*VOX_CELL,(k-VOX_C)*VOX_CELL]);
+  if(cells.length<1){ flash('paint at least one block first'); return false; }
+
+  const n=cells.length, m=1/n;
+  let cx=0,cy=0,cz=0;
+  cells.forEach(p=>{cx+=p[0];cy+=p[1];cz+=p[2];});
+  cx*=m; cy*=m; cz*=m;
+
+  let sxx=0,syy=0,szz=0,sxy=0,sxz=0,syz=0;
+  cells.forEach(p=>{
+    const dx=p[0]-cx, dy=p[1]-cy, dz=p[2]-cz;
+    sxx+=m*(dy*dy+dz*dz); syy+=m*(dx*dx+dz*dz); szz+=m*(dx*dx+dy*dy);
+    sxy-=m*dx*dy; sxz-=m*dx*dz; syz-=m*dy*dz;
+  });
+  const self=(1/6)*VOX_CELL*VOX_CELL;   /* each cube's own inertia about its own center, summed */
+  sxx+=self; syy+=self; szz+=self;
+
+  const eig=jacobiEig3([[sxx,sxy,sxz],[sxy,syy,syz],[sxz,syz,szz]]);
+  const order=[0,1,2].sort((a,b)=>eig.val[a]-eig.val[b]); /* low, mid, high */
+  const pick={hi:[order[0],order[1],order[2]], mid:[order[0],order[2],order[1]], lo:[order[1],order[2],order[0]]}[axisPick];
+  let ex=eig.vec[pick[0]], ezI=pick[2];
+  let ez=eig.vec[ezI];
+  /* Gram-Schmidt to guarantee an exact right-handed orthonormal frame,
+     regardless of Jacobi's arbitrary eigenvector signs/order. */
+  const nz=Math.hypot(ez[0],ez[1],ez[2])||1; ez=[ez[0]/nz,ez[1]/nz,ez[2]/nz];
+  let dxp=dot(ex,ez); ex=[ex[0]-dxp*ez[0],ex[1]-dxp*ez[1],ex[2]-dxp*ez[2]];
+  const nx=Math.hypot(ex[0],ex[1],ex[2])||1; ex=[ex[0]/nx,ex[1]/nx,ex[2]/nx];
+  const ey=cross(ez,ex);
+
+  const IXn=Math.max(eig.val[pick[0]],1e-4), IYn=Math.max(eig.val[pick[1]],1e-4), IZn=Math.max(eig.val[ezI],1e-4);
+
+  let maxR=0;
+  const bodyPos=cells.map(p=>{
+    const d=[p[0]-cx,p[1]-cy,p[2]-cz];
+    const bp=[dot(ex,d),dot(ey,d),dot(ez,d)];
+    const r=len(bp); if(r>maxR)maxR=r;
+    return bp;
+  });
+
+  bodyPos.forEach((bp,idx)=>{
+    _pos.set(bp[0],bp[1],bp[2]); _mtx.compose(_pos,_q0,_sc);
+    voxelVis.setMatrixAt(idx,_mtx);
+  });
+  voxelVis.count=n; voxelVis.instanceMatrix.needsUpdate=true;
+  voxelVis.visible=true; discVis.visible=false;
+
+  IX=IXn; IY=IYn; IZ=IZn;
+  shapeR=maxR+VOX_CELL*0.6;
+  refreshEllipsoid();
+  shaft.scale.set(1,shapeR,1); tip.position.z=1.5*shapeR;
+  stopMotion();
+
+  const lbl={hi:'High I\u2192Z (most stable)',mid:'Mid I\u2192Z (watch it tumble)',lo:'Low I\u2192Z (also stable)'}[axisPick];
+  spInertia.innerHTML=n+' blocks \u00B7 <b>Ix</b> '+IX.toFixed(3)+' <b>Iy</b> '+IY.toFixed(3)+' <b>Iz</b> '+IZ.toFixed(3);
+  flash(lbl+' \u2014 spin it up and see what happens');
+  return true;
+}
+
+function flash(t){
+  const f=document.getElementById('flash');
+  f.textContent=t||''; f.style.opacity=t?'1':'0';
+  if(t){clearTimeout(flash.t); flash.t=setTimeout(()=>f.style.opacity='0',2600);}
+}
+
+bGrav.addEventListener('click',()=>{
+  gravOn=!gravOn; bGrav.classList.toggle('on',gravOn); gArr.visible=gravOn;
+  if(gravOn) flash(len(L)<1.5 ? 'gravity on \u2014 too slow, it will just fall'
+                              : 'gravity on \u2014 it precesses instead of falling');
+});
+bFric.addEventListener('click',()=>{fricOn=!fricOn;bFric.classList.toggle('on',fricOn);});
+bEllip.addEventListener('click',()=>{
+  ellipsoidOn=!ellipsoidOn; bEllip.classList.toggle('on',ellipsoidOn);
+  ellip.visible=ellipsoidOn; poleMark.visible=ellipsoidOn; poTrail.visible=ellipsoidOn;
+  poN=0; poG.setDrawRange(0,0);
+  if(ellipsoidOn) flash('ellipsoid = 1/\u221AI per axis \u2014 short axis is the stable spin axis. white dot traces \u03c9 on its surface');
+});
+bNudge.addEventListener('click',()=>{
+  const f=new THREE.Vector3(); camera.getWorldDirection(f);
+  const rt=new THREE.Vector3().crossVectors(f,camera.up).normalize();
+  const d=cross(spinAxis(q),[rt.x,rt.y,rt.z]);
+  const dl=len(d)||1;
+  const J=Math.max(0.35,len(L)*0.06);
+  L=[L[0]+d[0]/dl*J, L[1]+d[1]/dl*J, L[2]+d[2]/dl*J];
+  flash('impulse \u2014 fast spin absorbs it, slow spin tumbles');
+});
+bReset.addEventListener('click',()=>{
+  initOrientation();
+  L=[0,0,0]; tn=0; tg.setDrawRange(0,0);
+  poN=0; poG.setDrawRange(0,0);
+  sSpin.value=0; lSpin.textContent='0.0 r/s';
+  ref=null; tgt.set(0,0,0); cr=CAM_R0; az=0.62; el=0.26;
+  nutBuf.length=0; precS=0; havePrev=false;
+  flash('reset');
+});
+
+const deckBody=document.getElementById('body'), gripL=document.getElementById('gripL');
+document.getElementById('grip').addEventListener('click',()=>{
+  const h=deckBody.classList.toggle('hid');
+  gripL.textContent=h?'\u25B8 deck':'\u25BE deck';
+});
+
+/* DEVICE ORIENTATION -> cage only */
+let tiltOn=false, ref=null, cageDeg=0;
+const dq=new THREE.Quaternion(), zee=new THREE.Vector3(0,0,1), eu=new THREE.Euler(),
+      qa=new THREE.Quaternion(), qb=new THREE.Quaternion(-Math.sqrt(0.5),0,0,Math.sqrt(0.5));
+function onOrient(e){
+  if(e.alpha===null||e.alpha===undefined)return;
+  const x=THREE.MathUtils.degToRad(e.beta||0),
+        y=THREE.MathUtils.degToRad(e.gamma||0),
+        z=THREE.MathUtils.degToRad(e.alpha||0);
+  const o=THREE.MathUtils.degToRad((screen.orientation&&screen.orientation.angle)||window.orientation||0);
+  eu.set(x,y,-z,'YXZ');
+  dq.setFromEuler(eu); dq.multiply(qb); dq.multiply(qa.setFromAxisAngle(zee,-o));
+  if(!ref) ref=dq.clone();
+}
+bTilt.addEventListener('click',()=>{
+  if(tiltOn){
+    tiltOn=false; window.removeEventListener('deviceorientation',onOrient);
+    cage.quaternion.identity(); bTilt.classList.remove('on'); bTilt.textContent='Disturb';
+    return;
+  }
+  const go=()=>{
+    window.addEventListener('deviceorientation',onOrient);
+    tiltOn=true; ref=null; bTilt.classList.add('on'); bTilt.textContent='Disturb \u25CF';
+    flash('tilt the phone \u2014 the cage turns, the rotor does not');
+  };
+  if(typeof DeviceOrientationEvent!=='undefined'&&DeviceOrientationEvent.requestPermission){
+    DeviceOrientationEvent.requestPermission()
+      .then(s=>{s==='granted'?go():flash('motion permission denied');})
+      .catch(()=>flash('motion sensors unavailable here'));
+  } else go();
+});
+const rq=new THREE.Quaternion();
+function updateCage(){
+  if(tiltOn&&ref){
+    rq.copy(ref).invert().multiply(dq);
+    cage.quaternion.copy(rq);
+    cageDeg=THREE.MathUtils.radToDeg(2*Math.acos(clamp(Math.abs(rq.w),-1,1)));
+  } else cageDeg=0;
+}
+
+/* TELEMETRY */
+let prevAz=0, havePrev=false, precS=0;
+const nutBuf=[];
+const E_=id=>document.getElementById(id);
+function telemetry(dt){
+  const ax=spinAxis(q), Lm=len(L);
+  const spin=dot(L,ax)/IZ/(2*Math.PI);
+  const polar=Math.acos(clamp(ax[1],-1,1))*180/Math.PI;
+
+  const hm=Math.hypot(ax[0],ax[2]);
+  if(hm>VERT_EPS){
+    const a=Math.atan2(ax[2],ax[0]);
+    if(havePrev){
+      let d=a-prevAz;
+      while(d>Math.PI)d-=2*Math.PI;
+      while(d<-Math.PI)d+=2*Math.PI;
+      precS+=((d/Math.max(dt,1e-4))*180/Math.PI - precS)*PREC_LP;
+    }
+    prevAz=a; havePrev=true;
+    E_('vPrec').textContent=precS.toFixed(2)+'\u00B0/s';
+  } else {
+    havePrev=false;
+    E_('vPrec').textContent='\u2014';
+  }
+
+  nutBuf.push(polar); if(nutBuf.length>NUT_WIN)nutBuf.shift();
+  let lo=1e9,hi=-1e9;
+  for(let i=0;i<nutBuf.length;i++){if(nutBuf[i]<lo)lo=nutBuf[i]; if(nutBuf[i]>hi)hi=nutBuf[i];}
+  E_('vNut').textContent=(nutBuf.length>4?(hi-lo):0).toFixed(2)+'\u00B0';
+
+  E_('vSpin').textContent=spin.toFixed(2)+' r/s';
+  E_('vTilt').textContent=polar.toFixed(1)+'\u00B0';
+  E_('vL').textContent=Lm.toFixed(2);
+  E_('vE').textContent=energy(q,L).toFixed(2)+' J';
+  E_('vSub').textContent=String(lastSub);
+
+  /* stability state — how tightly L stays locked to the body spin axis.
+     Stable -> Marginal -> Unstable -> Tumbling as alignment falls off. */
+  const rig=Lm>1e-4?Math.abs(dot(L,ax))/Lm:0;
+  const vs=E_('vStab');
+  if(Lm<0.04){vs.textContent='IDLE'; vs.className='v cream';}
+  else if(rig>0.92){vs.textContent='STABLE'; vs.className='v';}
+  else if(rig>0.70){vs.textContent='MARGINAL'; vs.className='v cream';}
+  else if(rig>0.35){vs.textContent='UNSTABLE'; vs.className='v warn';}
+  else {vs.textContent='TUMBLING'; vs.className='v mom';}
+}
+
+/* LOOP */
+const _q=new THREE.Quaternion(), _v=new THREE.Vector3();
+let last=performance.now();
+function frame(now){
+  let dt=(now-last)/1000; last=now;
+  if(dt>DT_CAP)dt=DT_CAP;
+  if(dt<=0)dt=1/60;
+
+  updateCage();
+  updatePadTorque();
+  advance(dt);
+
+  _q.set(q[0],q[1],q[2],q[3]);
+  rotor.quaternion.copy(_q);
+
+  const Lm=len(L);
+  if(Lm>1e-5){
+    _v.set(L[0]/Lm,L[1]/Lm,L[2]/Lm);
+    Larr.setDirection(_v);
+    Larr.setLength(clamp(0.3+Lm*0.055,0.3,3.3),0.28,0.16);
+    Larr.visible=true;
+  } else Larr.visible=false;
+
+  const w=omega(q,L), wm=len(w);
+  if(wm>1e-5){
+    _v.set(w[0]/wm,w[1]/wm,w[2]/wm);
+    Warr.setDirection(_v);
+    Warr.setLength(clamp(0.3+wm*0.04,0.3,3.3),0.26,0.14);
+    Warr.visible=true;
+  } else Warr.visible=false;
+
+  if(ellipsoidOn){
+    const E=energy(q,L);
+    if(E>E_EPS){
+      const Lb=qrot(qcon(q),L), k=ELLIPS_S/Math.sqrt(2*E);
+      const px=Lb[0]/IX*k, py=Lb[1]/IY*k, pz=Lb[2]/IZ*k;
+      poleMark.position.set(px,py,pz); poleMark.visible=true;
+      pushPolhode([px,py,pz]); poTrail.visible=true;
+    } else { poleMark.visible=false; poTrail.visible=false; }
+  }
+
+  const ax=spinAxis(q);
+  const tr=shapeR*2.05;
+  pushTrail([ax[0]*tr,ax[1]*tr,ax[2]*tr]);
+
+  telemetry(dt);
+  placeCam();
+  renderer.render(scene,camera);
+  requestAnimationFrame(frame);
+}
+
+function resize(){
+  const w=view.clientWidth, h=view.clientHeight;
+  renderer.setSize(w,h);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,320));
+resize(); requestAnimationFrame(resize); placeCam();
+
+/* INIT: tilt the axis TILT_INIT degrees off vertical, pure axial spin */
+function initOrientation(){
+  const p=TILT_INIT*Math.PI/180;
+  const th=Math.atan2(-Math.cos(p),Math.sin(p));
+  q=qnrm([Math.sin(th/2),0,0,Math.cos(th/2)]);
+}
+initOrientation();
+sSpin.value=SPIN_INIT; lSpin.textContent=SPIN_INIT.toFixed(1)+' r/s'; applySpin(SPIN_INIT);
+lCom.textContent=COM_DEF.toFixed(2)+' m';
+flash('1 finger orbit \u00B7 2 finger pan/zoom \u00B7 pink=L violet=\u03c9 \u00B7 Voxels = paint your own body');
+requestAnimationFrame(frame);
+})();
+</script>
+
+<!--
+=============================================================================
+GYRO_RIG v4 - CHANGELOG from v3
+=============================================================================
+
+VOXEL BODY BUILDER  (Voxels button)
+  Paint cells on a 5x5x5 grid (layer-by-layer, one 5x5 slice visible at a
+  time). Apply computes the REAL inertia tensor of whatever you painted —
+  full 3x3, including the off-diagonal cross terms for lopsided shapes —
+  then runs a small Jacobi eigensolver (jacobiEig3, ~40 sweeps over the 3
+  off-diagonal pairs, converges in a handful for a 3x3) to diagonalize it.
+
+  Per-voxel mass is 1/count so total mass stays 1 regardless of how many
+  cells are painted, matching the disc's M=1. Each cube's own inertia about
+  its own center — (1/6)*m*s^2, isotropic, no cross terms — is added via
+  parallel axis theorem before the solve, so even a single block or a
+  perfect NxN cube gives a sane (isotropic) result instead of a degenerate
+  point-mass approximation.
+
+  High I / Mid I / Low I -> Z picks which principal axis the spin slider
+  and Nudge/FORCE act on. This is the actual point of the feature: High or
+  Low I on z behaves like the disc (a symmetric top always has a stable
+  spin axis), but Mid I on z is the intermediate-axis / tennis-racket /
+  Dzhanibekov case — looks stable, then periodically flips, forever. With
+  Ellipsoid + polhode also on, this is visibly the separatrix loop through
+  the saddle points of the inertia ellipsoid, not just an assertion.
+
+  Once applied, painted shapes render as an InstancedMesh (voxelVis) in
+  place of the flywheel (discVis) — same rotor group, same q, same RK4,
+  nothing in the integrator or telemetry had to know a shape swap happened.
+  IX/IY/IZ went from const to let for exactly this reason. shapeR (bounding
+  radius) rescales the shaft/tip/trail so tiny or huge shapes still read
+  correctly. Applying or reverting zeroes L/spin/trails — swapping mass
+  distribution while flying is physically fine but confusing to watch, so
+  we start clean instead.
+
+BRIGHTNESS PASS
+  --void #060e1a -> #081527, fog density 0.028 -> 0.019, HemisphereLight
+  .55 -> .85, AmbientLight 1.2 -> 1.6, key/fill/accent lights all +20-25%,
+  grid opacity 0.38 -> 0.48, HUD label opacity .72 -> .85 with stronger
+  text-shadow glow across all readout classes, disc/rim/spoke/shaft/mark
+  emissive intensities bumped, ellipsoid wireframe .28 -> .34 opacity.
+  Reads noticeably more lit without flattening the navy/neon contrast the
+  palette depends on.
+
+=============================================================================
+GYRO_RIG v3 - CHANGELOG from v2b
+=============================================================================
+
+NEW VECTORS
+  w arrow (violet, C_OM) added alongside the existing L arrow (magenta).
+  Both are read straight from the body's current state each frame — nothing
+  scripted. When w and L visibly split apart, that split IS the nutation.
+  world w computed via omega(q,L); scaled independently of L's arrow so
+  either can dominate without swamping the other.
+
+INERTIA ELLIPSOID + POLHODE  (bEllip toggle, off by default)
+  ellip: body-fixed wireframe sphere scaled by (1/sqrt(Ix), 1/sqrt(Iy), 1/sqrt(Iz)).
+  This is the classic inertia ellipsoid {x : x.I.x = 1}. Because Iz > Ix = Iy
+  for this oblate disc, the ellipsoid is SHORT along z — the short axis is
+  the high-I axis, and high-I axis = the stable spin axis. The shape itself
+  is the argument; no text needed to explain why z holds and equatorial
+  spins don't.
+
+  poleMark + poTrail: the true polhode. x = w_body / sqrt(2E) lands exactly
+  on the ellipsoid surface by construction (x.I.x = (w.I.w)/2E = 1), so the
+  white dot never has to be clamped or faked onto the shape — it's already
+  there. Both are parented to the rotor group, so they render in body-local
+  space for free and the accumulating trail reads as a fixed curve carved
+  into the ellipsoid, exactly as the physics literature draws it.
+  Toggling clears the trail buffer for a clean re-trace.
+
+HUD
+  "rigidity  NN% rigid/wobble/tumble" -> "stability  STABLE/MARGINAL/
+  UNSTABLE/TUMBLING". Same underlying |L.axis|/|L| ratio, now read as a
+  state rather than a percentage — matches how the rest of the HUD reports
+  qualitative regime (idle, precessing) rather than raw numbers.
+  Thresholds: >0.92 stable, >0.70 marginal, >0.35 unstable, else tumbling.
+
+UI
+  "Tilt" -> "Disturb". The button never touches the rotor's physics — it
+  only spins the reference cage with the phone's own orientation, so the
+  old label read like a force being applied to the spinning body. "Disturb"
+  reads correctly as perturbing the observer's frame, not the object.
+
+=============================================================================
+GYRO_RIG v2b - CHANGELOG from v2
+=============================================================================
+
+BUGFIXES
+  1. mark.position.set(0.85, 0, com.toFixed(2)+' m')
+     -> mark.position.set(0.85, 0, 0)
+     The string leaked into the z-coordinate, parking the c.o.m. marker at NaN.
+
+  2. --line:#031C2  (5-digit hex, invalid)
+     -> --line:#1c3e5c
+
+PALETTE
+  CSS         --void  #000000 -> #060e1a  (midnight navy, not flat black)
+              --hull  #0b131d -> #0d2035
+              --line  #031C2  -> #1c3e5c  (now valid and visible)
+              --cream #EACCAF -> #F3EEC3  (canonical cream)
+              --ink   #646567 -> #8aacbf  (lighter blue-grey, more legible)
+              --read  #00dd66 -> #00ff88  (more vivid green)
+              --warn  #4E555B -> #ffb03a  (was grey; now proper amber for warnings)
+  HUD values  text-shadow glow added on all readout classes
+  Buttons     glow on .on states
+  Force pad   radial bg lifted; inset glow
+
+  Scene       background / fog: #060e1a (matched to CSS --void)
+              fog density: 0.048 -> 0.028 (clearer, more scene visible)
+              C_RIM  0xDF4231 -> 0xFF4060  (vivid red-pink rim ring)
+              C_CAGE              0xD0DCE8  (bright silver cage rings)
+              C_SPOKE             0xC8D8E8  (blue-silver spokes)
+              C_WARN 0xffb03a -> 0xFFCC00  (vivid amber — c.o.m. marker + g arrow)
+              disc emissive: C_AX @ 0.08 (subtle cyan pulse on face)
+
+  Lighting    + HemisphereLight (sky blue / void) at 0.55
+              AmbientLight brighter 1.0 -> 1.2
+              Key light: 0xbfe8d4 @ 0.95 -> 0xb0f0d8 @ 1.4
+              Red fill: 0.42 -> 0.65
+              + accent point (cyan, 0.45) at (3,-4,5)
+
+  Emissive    Cage rings: 0.22 -> 0.50
+              Rim torus:  0.55 -> 0.90
+              Spokes:     0.30 -> 0.50
+              Shaft/tip:  0.95 -> 1.20
+              c.o.m dot:  0.80 -> 1.00
+              Trail opacity: 0.42 -> 0.60
+
+  Grid        color: #1c3e5c / #4fd8ff, opacity 0.38 transparent
+
+=============================================================================
+PHYSICS DOCS (unchanged from v2)
+=============================================================================
+
+STATE
+  q  orientation quaternion, body -> world
+  L  angular momentum, WORLD frame
+  w  = R I^-1 R^T L        (recomputed at every derivative evaluation)
+
+L is stored in the world frame, so dL/dt = tau exactly and |L| is conserved to
+machine precision whenever tau = 0. Rigidity and precession are not scripted;
+both fall out of integrating these two quantities.
+
+INERTIA (solid disc, spin about body +z)
+  Iz = 1/2 M R^2               = 0.5000
+  Ix = Iy = 1/12 M (3R^2 + h^2) = 0.2602
+  Iz > Ix  =>  oblate  =>  spin about z is the stable axis.
+
+INTEGRATOR
+  RK4 on (q, L) with adaptive substeps targeting STEP_RAD = 0.15 rad per substep.
+  Verified: precession vs analytic mgd/(Iz w) ratio 1.000-1.004 across 3-30 rev/s.
+
+READING THE DEMO
+  Gravity on, spin low   -> it falls over. Correct physics.
+  Gravity on, spin high  -> precesses, tilt holds, nutation -> 0. Rigidity.
+  Tilt on                -> cage follows the phone, rotor ignores it entirely.
+  Nudge / FORCE          -> deflection scales as 1/w.
+=============================================================================
+-->
+</body>
+</html>
+
